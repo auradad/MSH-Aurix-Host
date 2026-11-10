@@ -1,0 +1,42 @@
+name: Build MSH images
+
+# Builds one MSH runtime image per Java version and pushes them to this repo's GitHub Container Registry.
+# Run it from the Actions tab (Run workflow), or it runs automatically when you publish/edit the AurixHost release.
+# PREREQUISITE: the MSH.jar asset must already be attached to the "AurixHost" release (the build downloads it).
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published, edited]
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        java: ["8", "11", "16", "17", "21", "25"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download MSH.jar from the AurixHost release
+        run: |
+          curl -fsSL -o docker/MSH.jar \
+            "https://github.com/${{ github.repository }}/releases/download/AurixHost/MSH.jar"
+          test -s docker/MSH.jar
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ghcr.io/${{ github.repository_owner }}/msh:java_${{ matrix.java }}
+        uses: docker/build-push-action@v5
+        with:
+          context: docker
+          build-args: BASE=ghcr.io/pterodactyl/yolks:java_${{ matrix.java }}
+          tags: ghcr.io/${{ github.repository_owner }}/msh:java_${{ matrix.java }}
+          push: true
